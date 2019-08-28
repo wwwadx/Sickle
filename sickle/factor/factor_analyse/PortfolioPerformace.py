@@ -226,7 +226,7 @@ class PortfolioPerformance:
         net_df = pd.DataFrame().from_records(dict(zip(time_list, net_value_list)), index=['net_value']).T
         return net_df
 
-    @do_profile("./pos_cal.prof")
+    # @do_profile("./pos_cal.prof")
     def long_and_short_perf_optimize(self, pos, cost):
         """
         同时多空的收益
@@ -243,8 +243,8 @@ class PortfolioPerformance:
         tday_series.name = 'dates'
         position_df = pd.merge(pd.DataFrame(tday_series.shift(-1)), pos, left_index=True, right_index=True).dropna(how='all')
         position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
-        position_df = position_df.set_index('datetime')
         position_df = position_df.drop_duplicates()
+        position_df = position_df.set_index('datetime')
         rebalance_time = position_df.index
         position_df_long = position_df[position_df > 0].fillna(0)
         position_df_short = -position_df[position_df < 0].fillna(0)
