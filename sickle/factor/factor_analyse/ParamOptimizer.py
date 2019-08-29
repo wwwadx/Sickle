@@ -9,7 +9,7 @@ from ..domians.normal_domian_1 import domain_dict
 
 
 class OneParamOptimizer:
-    def __init__(self, factor, frequency, param_list, domain=domain_dict, holding_num_list=None, ma_list=None, cost=0.0001):
+    def __init__(self, factor, frequency, param_list, domain=domain_dict, holding_num_list=None, ma_list=None, cost=0.0001, netvalue_in_res=False):
         """
         因子本身参数只有一个的参数优化
         :param factor: 因子类名
@@ -24,6 +24,7 @@ class OneParamOptimizer:
         self.factor = factor
         self.param_list = param_list
         self.domain = domain
+        self.netvalue_in_res = netvalue_in_res
         if holding_num_list is not None:
             self.holding_num_list = holding_num_list
         else:
@@ -72,26 +73,30 @@ class OneParamOptimizer:
                         if name not in done:
                             perf_df, net_value = self.cal_factor_res(name, fac_df, side, count, perf)
                             res_df = pd.concat([res_df, perf_df.T], axis=0)
-                            net_value_df = pd.concat([net_value_df, net_value], axis=1)
+                            if self.netvalue_in_res:
+                                net_value_df = pd.concat([net_value_df, net_value], axis=1)
                             done.append(name)
                         # 算平均后因子值收益
                         for ma_len in self.ma_list:
                             name_ma = "{}@{}@ma{}@{}@{}".format(factor.factor_name, single_domain, ma_len, side, count)
                             if name_ma not in done:
-                                fac_ma = factor.ma(ma_len)
+                                fac_ma = fac_df.rolling(ma_len, min_periods=ma_len).mean().dropna(how='all')
                                 perf_df_ma, net_value_ma = self.cal_factor_res(name_ma, fac_ma, side, count, perf)
                                 done.append(name_ma)
                                 res_df = pd.concat([res_df, perf_df_ma.T], axis=0)
-                                net_value_df = pd.concat([net_value_df, net_value_ma], axis=1)
-            if not os.path.exists("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1])):
-                with pd.ExcelWriter("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1]),
+                                if self.netvalue_in_res:
+                                    net_value_df = pd.concat([net_value_df, net_value_ma], axis=1)
+            if not os.path.exists("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side)):
+                with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),
                                     mode='w') as writer:
                     res_df.to_excel(writer, sheet_name=single_domain)
-                    net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))
+                    if self.netvalue_in_res:
+                        net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))
             else:
-                with pd.ExcelWriter("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1]), mode='a') as writer:
+                with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side), mode='a') as writer:
                     res_df.to_excel(writer, sheet_name=single_domain)
-                    net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))
+                    if self.netvalue_in_res:
+                        net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))
 
 
 class TwoParamOptimizer:
@@ -168,20 +173,20 @@ class TwoParamOptimizer:
                                 done.append(name)
                             # 算平均后因子值收益
                             for ma_len in self.ma_list:
-                                fac_ma = factor.ma(ma_len)
+                                fac_ma = fac_df.rolling(ma_len, min_periods=ma_len).mean()
                                 name_ma = "{}@{}@ma{}@{}@{}".format(factor.factor_name, single_domain, ma_len, side, count)
                                 if name_ma not in done:
                                     perf_df_ma, net_value_ma = self.cal_factor_res(name, fac_ma, side, count, perf)
                                     res_df = pd.concat([res_df, perf_df_ma.T], axis=0)
                                     net_value_df = pd.concat([net_value_df, net_value_ma], axis=0)
                                     done.append(name)
-            if not os.path.exists("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1])):
-                with pd.ExcelWriter("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1]),
+            if not os.path.exists("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side)):
+                with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),
                                     mode='w') as writer:
                     res_df.to_excel(writer, sheet_name=single_domain)
                     net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))
             else:
-                with pd.ExcelWriter("{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1]),
+                with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),
                                     mode='a') as writer:
                     res_df.to_excel(writer, sheet_name=single_domain)
                     net_value_df.to_excel(writer, sheet_name='{}_net_value'.format(single_domain))

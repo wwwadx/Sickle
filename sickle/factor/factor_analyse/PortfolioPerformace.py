@@ -1,6 +1,5 @@
 import pandas as pd
-from ..factor_def.basic.ORIGINAL_CLOSE import ORIGINAL_CLOSE
-from ..factor_def.basic.ORIGINAL_OPEN import ORIGINAL_OPEN
+from ..factor_def.basic import ORIGINAL_CLOSE, ORIGINAL_OPEN, ORIGINAL_ASK1, ORIGINAL_BID1
 import os
 from tqdm import tqdm
 import numpy as np
@@ -67,6 +66,8 @@ class PortfolioPerformance:
     def __init__(self, frequence):
         self.open = None
         self.close = None
+        # self.bid1 = None
+        # self.ask1 = None
         self.trade_times = None
         # 当天收盘和当天开盘
         self.close_open_returns = None
@@ -80,8 +81,12 @@ class PortfolioPerformance:
     def init(self):
         open_price = ORIGINAL_OPEN(frequency=self.frequence)
         close_price = ORIGINAL_CLOSE(frequency=self.frequence)
+        # bid1_price = ORIGINAL_BID1(frequency=self.frequence)
+        # ask1_price = ORIGINAL_ASK1(frequency=self.frequence)
         self.open = open_price.get_cached_factor(os.path.join(user_home, 'factor_cache')).sort_index()
         self.close = close_price.get_cached_factor(os.path.join(user_home, 'factor_cache')).sort_index()
+        # self.bid1 = bid1_price.get_cached_factor(os.path.join(user_home, 'factor_cache')).sort_index()
+        # self.ask1 = ask1_price.get_cached_factor(os.path.join(user_home, 'factor_cache')).sort_index()
         self.close_close_returns = self.close.pct_change(fill_method=None)
         self.close_close_returns = self.close_close_returns.fillna(0)
         self.close_open_returns = self.close / self.open - 1
@@ -289,7 +294,7 @@ class PortfolioPerformance:
                 cost_long = abs(temp_long - daily_weight_long) * cost
                 cost_short = abs(temp_short - daily_weight_short) * cost
                 cost_percent = cost_long + cost_short
-                turnover = abs(temp_long - daily_weight_long).sum() + abs(temp_short - daily_weight_short).sum()
+                turnover = (abs((temp_long - daily_weight_long) / daily_weight_long.sum()).sum() + abs((temp_short - daily_weight_short) / daily_weight_short.sum()).sum()) / 2
                 turnover_list.append(turnover)
                 # 持仓到收盘的权重变化
                 temp_long_close = temp_long * (1 - cost_long + close_open_array[return_time_index])

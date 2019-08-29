@@ -10,6 +10,8 @@ __all__ = [
     'ORIGINAL_CLOSE',
     'ORIGINAL_HIGH',
     'ORIGINAL_AMT',
+    'ORIGINAL_ASK1',
+    'ORIGINAL_BID1',
     'TREND_CLOSE',
     'O_SKEWNESS',
     'O_RSM',
