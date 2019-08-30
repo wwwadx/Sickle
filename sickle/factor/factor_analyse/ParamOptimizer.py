@@ -9,7 +9,7 @@ from ..domians.normal_domian_1 import domain_dict
 
 
 class OneParamOptimizer:
-    def __init__(self, factor, frequency, param_list, domain=domain_dict, holding_num_list=None, ma_list=None, cost=0.0001, netvalue_in_res=False):
+    def __init__(self, factor, frequency, param_list, domain=domain_dict, holding_period_list=None, holding_num_list=None, cost=0.0001, netvalue_in_res=False):
         """
         因子本身参数只有一个的参数优化
         :param factor: 因子类名
@@ -29,10 +29,10 @@ class OneParamOptimizer:
             self.holding_num_list = holding_num_list
         else:
             self.holding_num_list = [2, 4, 6, 8, 10]
-        if ma_list is not None:
-            self.ma_list = ma_list
+        if holding_period_list is not None:
+            self.holding_period_list = holding_period_list
         else:
-            self.ma_list = [3, 5, 10, 20, 40]
+            self.holding_period_list = [1, 5, 10, 20]
         self.cost = cost
         self.ana = FactorAnalyser()
 
@@ -40,9 +40,9 @@ class OneParamOptimizer:
         assert type(frequency) == list, "frequency is not list"
         assert type(param) == list, "frequency is not list"
 
-    def cal_factor_res(self, name, fac_df, side, count, perf):
-        ls_pos = self.ana.factor_to_portfolio_ls(fac=fac_df, side=side, count=count, period=1)
-        net_value, turnover = perf.long_and_short_perf_optimize(ls_pos, self.cost)
+    def cal_factor_res(self, name, fac_df, side, count, perf, period):
+        ls_pos = self.ana.factor_to_portfolio_ls(fac=fac_df, side=side, count=count, period=period)
+        net_value, turnover = perf.long_and_short_perf_optimize_with_numba(ls_pos, self.cost)
         cal = CalIdicator(net_value, turnover)
         perf_df = cal.profit_distribution()
         perf_df = pd.DataFrame(perf_df.loc['annual'])
@@ -68,24 +68,15 @@ class OneParamOptimizer:
                         fac_df = factor.set_universe(self.domain[single_domain])
                     # 计算因子均值
                     for count in self.holding_num_list:
-                        # 正常因子值算收益
-                        name = "{}@{}@{}@{}".format(factor.factor_name, single_domain, side, count)
-                        if name not in done:
-                            perf_df, net_value = self.cal_factor_res(name, fac_df, side, count, perf)
-                            res_df = pd.concat([res_df, perf_df.T], axis=0)
-                            if self.netvalue_in_res:
-                                net_value_df = pd.concat([net_value_df, net_value], axis=1)
-                            done.append(name)
-                        # 算平均后因子值收益
-                        for ma_len in self.ma_list:
-                            name_ma = "{}@{}@ma{}@{}@{}".format(factor.factor_name, single_domain, ma_len, side, count)
-                            if name_ma not in done:
-                                fac_ma = fac_df.rolling(ma_len, min_periods=ma_len).mean().dropna(how='all')
-                                perf_df_ma, net_value_ma = self.cal_factor_res(name_ma, fac_ma, side, count, perf)
-                                done.append(name_ma)
-                                res_df = pd.concat([res_df, perf_df_ma.T], axis=0)
+                        for period in self.holding_period_list:
+                            # 正常因子值算收益
+                            name = "{}@{}@{}@{}@{}".format(factor.factor_name, single_domain, side, count, period)
+                            if name not in done:
+                                perf_df, net_value = self.cal_factor_res(name, fac_df, side, count, perf, period)
+                                res_df = pd.concat([res_df, perf_df.T], axis=0)
                                 if self.netvalue_in_res:
-                                    net_value_df = pd.concat([net_value_df, net_value_ma], axis=1)
+                                    net_value_df = pd.concat([net_value_df, net_value], axis=1)
+                                done.append(name)
             if not os.path.exists("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side)):
                 with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),
                                     mode='w') as writer:
@@ -100,7 +91,7 @@ class OneParamOptimizer:
 
 
 class TwoParamOptimizer:
-    def __init__(self, factor, frequency, param_list_1, param_list_2, domain=domain_dict, holding_num_list=None, ma_list=None, cost=0.0001):
+    def __init__(self, factor, frequency, param_list_1, param_list_2, domain=domain_dict, holding_period_list=None, holding_num_list=None, cost=0.0001):
         """
         因子本身参数有两个的参数优化
         :param factor: 因子类名
@@ -120,10 +111,10 @@ class TwoParamOptimizer:
             self.holding_num_list = holding_num_list
         else:
             self.holding_num_list = [2, 4, 6, 8, 10]
-        if ma_list is not None:
-            self.ma_list = ma_list
+        if holding_period_list is not None:
+            self.holding_period_list = holding_period_list
         else:
-            self.ma_list = [3, 5, 10, 20, 40]
+            self.holding_period_list = [1, 5, 10, 20]
         self.param_list_1 = param_list_1
         self.param_list_2 = param_list_2
         self.cost = cost
@@ -133,10 +124,10 @@ class TwoParamOptimizer:
         assert type(frequency) == list, "frequency is not list"
         assert type(param) == list, "frequency is not list"
 
-    def cal_factor_res(self, name, fac_df, side, count, perf):
-        ls_pos = self.ana.factor_to_portfolio_ls(fac=fac_df, side=side, count=count, period=1)
+    def cal_factor_res(self, name, fac_df, side, count, perf, period):
+        ls_pos = self.ana.factor_to_portfolio_ls(fac=fac_df, side=side, count=count, period=period)
         if len(ls_pos) > 0:
-            net_value, turnover = perf.long_and_short_perf_optimize(ls_pos, self.cost)
+            net_value, turnover = perf.long_and_short_perf_optimize_with_numba(ls_pos, self.cost)
             cal = CalIdicator(net_value, turnover)
             perf_df = cal.profit_distribution()
             perf_df = pd.DataFrame(perf_df.loc['annual'])
@@ -165,20 +156,12 @@ class TwoParamOptimizer:
                         if single_domain != 'all':
                             fac_df = factor.set_universe(self.domain[single_domain])
                         for count in self.holding_num_list:
-                            name = "{}@{}@{}@{}".format(factor.factor_name, single_domain, side, count)
-                            if name not in done:
-                                perf_df, net_value = self.cal_factor_res(name, fac_df, side, count, perf)
-                                res_df = pd.concat([res_df, perf_df.T], axis=0)
-                                net_value_df = pd.concat([net_value_df, net_value], axis=0)
-                                done.append(name)
-                            # 算平均后因子值收益
-                            for ma_len in self.ma_list:
-                                fac_ma = fac_df.rolling(ma_len, min_periods=ma_len).mean()
-                                name_ma = "{}@{}@ma{}@{}@{}".format(factor.factor_name, single_domain, ma_len, side, count)
-                                if name_ma not in done:
-                                    perf_df_ma, net_value_ma = self.cal_factor_res(name, fac_ma, side, count, perf)
-                                    res_df = pd.concat([res_df, perf_df_ma.T], axis=0)
-                                    net_value_df = pd.concat([net_value_df, net_value_ma], axis=0)
+                            for period in self.holding_period_list:
+                                name = "{}@{}@{}@{}@{}".format(factor.factor_name, single_domain, side, count, period)
+                                if name not in done:
+                                    perf_df, net_value = self.cal_factor_res(name, fac_df, side, count, perf, period)
+                                    res_df = pd.concat([res_df, perf_df.T], axis=0)
+                                    net_value_df = pd.concat([net_value_df, net_value], axis=0)
                                     done.append(name)
             if not os.path.exists("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side)):
                 with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),

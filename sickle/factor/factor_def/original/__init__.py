@@ -7,6 +7,7 @@ from .O_SKEWNESS import O_SKEWNESS
 from .O_TECH_1 import O_TECH_1
 from .O_MOM_DIFF import O_MOM_DIFF
 from .O_VSTD import O_VSTD
+from .O_AD import O_AD
 
 __all__ = [
     'O_SKEWNESS',
@@ -16,6 +17,7 @@ __all__ = [
     'O_KURTOSIS',
     'O_ILLIQ',
     'O_MOM_DIFF',
-    'O_VSTD'
+    'O_VSTD',
+    'O_AD'
 
 ]

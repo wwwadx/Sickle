@@ -27,6 +27,7 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
     last_cost = np.array([cost])
     for i in np.arange(tday_series.shape[0]):
         # 换仓
+        i = i + 1
         trade_time = tday_series[i]
         if np.any(rebalance_time == trade_time):
             re_time_index = np.searchsorted(rebalance_time, trade_time)
@@ -40,8 +41,8 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
             cost_long = np.abs(temp_long - daily_weight_long) * cost
             cost_short = np.abs(temp_short - daily_weight_short) * cost
             cost_percent = cost_long + cost_short
-            turnover = np.sum(np.abs(temp_long - daily_weight_long)) + np.sum(
-                np.abs(temp_short - daily_weight_short))
+            turnover = (np.sum(np.abs(temp_long - daily_weight_long) / np.sum(daily_weight_long)) + np.sum(
+                np.abs(temp_short - daily_weight_short) / np.sum(daily_weight_short))) / 2
             temp_long_close = temp_long * (1 - cost_long + close_open_array[return_time_index])
             temp_short_close = temp_short * (1 - cost_short - close_open_array[return_time_index])
             daily_weight_long = temp_long_close
@@ -314,10 +315,11 @@ class PortfolioPerformance:
                 net_value_list.append(temp_short.sum() + temp_long.sum())
                 time_list.append(trade_time)
                 turnover_list.append(0)
-        net_df = pd.DataFrame().from_records(dict(zip(time_list, net_value_list)), index=['net_value']).T
-        turnover_df = pd.DataFrame().from_records(dict(zip(time_list, turnover_list)), index=['turnover']).T
+        net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
+        turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])
         return net_df, turnover_df
 
+    # @do_profile("./pos_cal.prof")
     def long_and_short_perf_optimize_with_numba(self, pos, cost):
         """
         同时多空的收益
@@ -334,8 +336,8 @@ class PortfolioPerformance:
         tday_series.name = 'dates'
         position_df = pd.merge(pd.DataFrame(tday_series.shift(-1)), pos, left_index=True, right_index=True).dropna(how='all')
         position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
-        position_df = position_df.set_index('datetime')
         position_df = position_df.drop_duplicates()
+        position_df = position_df.set_index('datetime')
         rebalance_time = position_df.index
         position_df_long = position_df[position_df > 0].fillna(0)
         position_df_short = -position_df[position_df < 0].fillna(0)
@@ -352,14 +354,14 @@ class PortfolioPerformance:
         close_close_array = close_close_returns.values
         open_close_array = open_close_returns.values
         returns_times = np.array([i.timestamp() for i in close_close_returns.index])
-        tday_series = tday_series[(tday_series.index > rebalance_time[0]) & (tday_series.index <= end_time)]
+        tday_series = tday_series[(tday_series.index >= rebalance_time[0]) & (tday_series.index <= end_time)]
         tday_series = tday_series.apply(lambda x: x.timestamp()).values
         rebalance_time = np.array([i.timestamp() for i in rebalance_time])
         net_value_list, turnover_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
                 tday_series, close_open_array, open_close_array, close_close_array, cost)
         time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
-        net_df = pd.DataFrame().from_records(dict(zip(time_list, net_value_list)), index=['net_value']).T
-        turnover_df = pd.DataFrame().from_records(dict(zip(time_list, turnover_list)), index=['turnover']).T
+        net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
+        turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])
         tz_zone = get_localzone()
         net_df.index = net_df.index.tz_localize(tz_zone)
         turnover_df.index = turnover_df.index.tz_localize(tz_zone)

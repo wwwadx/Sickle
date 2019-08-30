@@ -26,6 +26,7 @@ __all__ = [
     'T_RSM',
     'T_MOMENTUM',
     'O_MOM_DIFF',
-    'O_VSTD'
+    'O_VSTD',
+    'O_AD'
 
 ]
