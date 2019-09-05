@@ -106,6 +106,9 @@ class FactorBase:
         else:
             return self.raw_value[contract_list]
 
+    def set_dynamic_universe(self, domain_factor, category):
+        return self.raw_value[domain_factor == category].dropna(how='all')
+
     def filter_extreme_nd_standarize(self):
         """
         中位数去极值

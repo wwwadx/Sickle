@@ -160,6 +160,19 @@ class CalIdicator:
         )
         return round(year_per, 4)
 
+    def profit_distribution_total(self):
+        year_per = pd.DataFrame()
+        year_per = year_per.append(
+            pd.Series(
+                {
+                    '收益': empyrical.annual_return(self.daily_return),
+                    '最大回撤': empyrical.max_drawdown(self.daily_return),
+                    '夏普': empyrical.sharpe_ratio(self.daily_return),
+                }, name='annual'
+            )
+        )
+        return year_per
+
     def win_loss_distribution(self, pnl_array, datetime_array, res_type='c'):
         """
         连赢连输分布

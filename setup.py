@@ -39,7 +39,7 @@ setup(
     author_email='wza19930703@gmail.com',
     license='Apache License v2',
     package_data={'': ['*.*']},
-    url='https://github.com/wwwadx/sickle',
+    url='https://github.com/wwwadx/Sickle',
     install_requires=[str(ir.req) for ir in parse_requirements(
         "requirements.txt", session=False)],
     zip_safe=False,

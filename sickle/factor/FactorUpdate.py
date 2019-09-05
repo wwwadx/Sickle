@@ -1,7 +1,7 @@
-import sickle.sickle.factor.factor_def.basic as f_basic
-import sickle.sickle.factor.factor_def.original as f_original
-import sickle.sickle.factor.factor_def.trend as f_trend
-from sickle.sickle.factor.factor_def import *
+import Sickle.sickle.factor.factor_def.basic as f_basic
+import Sickle.sickle.factor.factor_def.original as f_original
+import Sickle.sickle.factor.factor_def.trend as f_trend
+from Sickle.sickle.factor.factor_def import *
 from tqdm import tqdm
 import multiprocessing
 

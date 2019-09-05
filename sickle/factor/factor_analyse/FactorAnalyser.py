@@ -126,7 +126,7 @@ class FactorAnalyser:
 
     def factor_to_portfolio_ls(self, fac, side, count, period):
         """
-        因子构建多空组合
+        因子构建多空组合, 品种等权
         Args:
             fac: 矩阵形式存储的因子DataFrame
             side: 因子方向, int, 1或-1
@@ -201,6 +201,67 @@ class FactorAnalyser:
         select_df = select_df.fillna(0)
         return select_df
 
+    @staticmethod
+    def filter_extreme_nd_standarize(fac):
+        """
+        中位数去极值
+        Args:
+            fac: 矩阵形式存储的因子DataFrame
+
+        Returns:
+
+        """
+        median = fac.median(axis=1)
+        mad = abs(fac.sub(median, axis=0)).median(axis=1)
+        data = fac.clip(median - 5.2 * mad, median + 5.2 * mad, axis=0)
+        return data.sub(data.mean(axis=1), 0).div(data.std(1), 0).dropna(how='all')
+
+    def factor_to_portfolio_ls_weight(self, fac, side, count, period):
+        """
+        因子构建多空组合, 品种按因子值加权
+        Args:
+            fac: 矩阵形式存储的因子DataFrame
+            side: 因子方向, int, 1或-1
+            count: 做多多少只股票，如果小于1则按照quantile做,这里只能小于1
+            period: 调仓周期，是因子频率的period倍
+
+        Returns:
+            字典形式存储的结果
+
+        """
+        assert count < 1, "count should be between 0 and 1"
+        fac.replace(np.inf, np.nan, inplace=True)
+        fac.replace(-np.inf, np.nan, inplace=True)
+        fac = fac.dropna(how='all', axis=0)
+        fac = self.filter_extreme_nd_standarize(fac)
+        long_chosen = fac.copy()
+        short_chosen = fac.copy()
+        temp_l = fac.sub(fac.quantile(1 - count, axis=1), axis=0)
+        long_chosen[temp_l < 0] = 0
+        temp_s = fac.sub(fac.quantile(count, axis=1), axis=0)
+        short_chosen[temp_s > 0] = 0
+        if side == -1:
+            long_chosen, short_chosen = short_chosen, long_chosen
+        long_chosen = long_chosen.fillna(0)
+        short_chosen = short_chosen.fillna(0)
+        chosen_num_l = long_chosen.sum(1)
+        result_df_l = long_chosen.div(chosen_num_l, 0)
+        chosen_num_s = short_chosen.sum(1)
+        result_df_s = -short_chosen.div(chosen_num_s, 0)
+        result_df = result_df_l + result_df_s
+        # 如果截面上全部数据一致时，会出现持仓为0的情况，这种时候修正持仓，让其等于上一个bar的持仓，相当于持仓不变
+        zero_point = result_df[(abs(result_df).sum(1) == 0)].index
+        for time_index in zero_point:
+            result_df.loc[time_index] = result_df.iloc[np.searchsorted(result_df.index, time_index) - 1, :]
+        # 归一化
+        result_df[result_df > 0] = result_df[result_df > 0].div(result_df[result_df > 0].sum(1), 0)
+        result_df[result_df < 0] = -result_df[result_df < 0].div(result_df[result_df < 0].sum(1), 0)
+        # 每隔period时间调仓,选出每次调仓结果组成dataframe
+        select_rebanlance = [i for i in range(1, len(result_df), period)]
+        select_df = result_df.iloc[select_rebanlance, :]
+        select_df = select_df.fillna(0)
+        return select_df
+
     def factor_to_portfolio_ls_basedon_value(self, fac, value, period):
         """
         因子构建多空组合, 根据给定值构
@@ -234,3 +295,4 @@ class FactorAnalyser:
         select_df = result_df.iloc[select_rebanlance, :]
         select_df = select_df.fillna(0)
         return select_df
+
