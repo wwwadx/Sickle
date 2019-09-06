@@ -90,13 +90,13 @@ class FactorBase:
         # contracts = all_contracts()
         # filter_contracts = ['ZZ500', 'HS300', 'SZ50', 'T', 'TF', 'IC', 'IF', 'IH']
         # contracts = [i.lower() for i in contracts if i not in filter_contracts]
-        self.contracts = ['a', 'ag', 'al', 'ap', 'au', 'b', 'bu',
-                          'bb', 'c', 'cs', 'cf', 'cu', 'er',
-                          'fb', 'fg', 'fu', 'hc', 'i', 'j', 'jd',
-                          'jm', 'jr', 'm', 'rb', 'l', 'lr', 'ma',
-                          'me', 'ni', 'p', 'pb', 'pp', 'ro', 'rs',
+        self.contracts = ['a', 'ag', 'al', 'ap', 'au', 'bu',
+                          'c', 'cs', 'cu', 'cf',
+                          'fg', 'fu', 'hc', 'i', 'j', 'jd',
+                          'jm', 'm', 'rb', 'l', 'ma', 'oi',
+                          'ni', 'p', 'pb', 'pp', 'rs', 'rm',
                           'ru', 'sf', 'sm', 'sn', 'sr', 'ta',
-                          'v', 'ws', 'y', 'zc', 'zn']
+                          'v', 'y', 'zc', 'zn']
 
     def set_universe(self, contract_list):
         temp = [i for i in contract_list if i not in self.contracts]
