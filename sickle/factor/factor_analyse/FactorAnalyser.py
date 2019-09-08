@@ -216,6 +216,21 @@ class FactorAnalyser:
         data = fac.clip(median - 5.2 * mad, median + 5.2 * mad, axis=0)
         return data.sub(data.mean(axis=1), 0).div(data.std(1), 0).dropna(how='all')
 
+    @staticmethod
+    def filter_extreme(fac):
+        """
+        中位数去极值
+        Args:
+            fac: 矩阵形式存储的因子DataFrame
+
+        Returns:
+
+        """
+        median = fac.median(axis=1)
+        mad = abs(fac.sub(median, axis=0)).median(axis=1)
+        data = fac.clip(median - 5.2 * mad, median + 5.2 * mad, axis=0)
+        return data
+
     def factor_to_portfolio_ls_weight(self, fac, side, count, period):
         """
         因子构建多空组合, 品种按因子值加权
@@ -233,7 +248,7 @@ class FactorAnalyser:
         fac.replace(np.inf, np.nan, inplace=True)
         fac.replace(-np.inf, np.nan, inplace=True)
         fac = fac.dropna(how='all', axis=0)
-        fac = self.filter_extreme_nd_standarize(fac)
+        fac = self.filter_extreme(fac)
         long_chosen = fac.copy()
         short_chosen = fac.copy()
         temp_l = fac.sub(fac.quantile(1 - count, axis=1), axis=0)
