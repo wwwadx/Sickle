@@ -235,7 +235,7 @@ class FactorAnalyser:
         """
         因子构建多空组合, 品种按因子值加权
         Args:
-            fac: 矩阵形式存储的因子DataFrame
+            fac_df: 矩阵形式存储的因子DataFrame
             side: 因子方向, int, 1或-1
             count: 做多多少只股票，如果小于1则按照quantile做,这里只能小于1
             period: 调仓周期，是因子频率的period倍
