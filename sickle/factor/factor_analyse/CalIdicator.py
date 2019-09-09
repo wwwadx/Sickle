@@ -173,6 +173,26 @@ class CalIdicator:
         )
         return year_per
 
+    def profit_distribution_for_mining(self):
+        sharpe_ratio = self.daily_return.groupby(
+            [self.daily_return.index.year]
+        ).apply(
+            lambda x: empyrical.sharpe_ratio(x)
+        )
+        year_per = pd.DataFrame(
+            {
+                '夏普': sharpe_ratio,
+            }
+        )
+        year_per = year_per.append(
+            pd.Series(
+                {
+                    '夏普': empyrical.sharpe_ratio(self.daily_return),
+                }, name='annual'
+            )
+        )
+        return round(year_per, 4)
+
     def win_loss_distribution(self, pnl_array, datetime_array, res_type='c'):
         """
         连赢连输分布
