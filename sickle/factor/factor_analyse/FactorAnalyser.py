@@ -231,7 +231,7 @@ class FactorAnalyser:
         data = fac.clip(median - 5.2 * mad, median + 5.2 * mad, axis=0)
         return data
 
-    def factor_to_portfolio_ls_weight(self, fac, side, count, period):
+    def factor_to_portfolio_ls_weight(self, fac_df, side, count, period):
         """
         因子构建多空组合, 品种按因子值加权
         Args:
@@ -244,13 +244,14 @@ class FactorAnalyser:
             字典形式存储的结果
 
         """
+        fac = fac_df.copy(deep=True)
         assert count < 1, "count should be between 0 and 1"
         fac.replace(np.inf, np.nan, inplace=True)
         fac.replace(-np.inf, np.nan, inplace=True)
         fac = fac.dropna(how='all', axis=0)
         fac = self.filter_extreme(fac)
-        long_chosen = fac.copy()
-        short_chosen = fac.copy()
+        long_chosen = fac.copy(deep=True)
+        short_chosen = fac.copy(deep=True)
         temp_l = fac.sub(fac.quantile(1 - count, axis=1), axis=0)
         long_chosen[temp_l < 0] = 0
         temp_s = fac.sub(fac.quantile(count, axis=1), axis=0)

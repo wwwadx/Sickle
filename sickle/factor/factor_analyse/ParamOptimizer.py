@@ -60,13 +60,12 @@ class OneParamOptimizer:
             net_value_df = pd.DataFrame()
             for frequence in self.frequency_list:
                 perf = PortfolioPerformance(frequence)
-                for param in tqdm(self.param_list):
+                for param in self.param_list:
                     factor = self.factor(frequence, param)
                     fac_df = factor.get_raw_value(start_date=start_date, end_date=end_date)
                     # 限定分域品种
                     if single_domain != 'all':
                         fac_df = factor.set_universe(self.domain[single_domain])
-                    # 计算因子均值
                     for count in self.holding_num_list:
                         for period in self.holding_period_list:
                             # 正常因子值算收益
@@ -77,6 +76,7 @@ class OneParamOptimizer:
                                 if self.netvalue_in_res:
                                     net_value_df = pd.concat([net_value_df, net_value], axis=1)
                                 done.append(name)
+                                print(name)
             if not os.path.exists("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side)):
                 with pd.ExcelWriter("{}@side{}.xlsx".format(self.factor.__dict__['__module__'].split('.')[-1], side),
                                     mode='w') as writer:
