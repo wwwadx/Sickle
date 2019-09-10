@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from ..factor_def.basic import ORIGINAL_CLOSE
 import os
+import time
 user_home = os.path.expanduser('~')
 
 
@@ -231,13 +232,12 @@ class FactorAnalyser:
         data = fac.clip(median - 5.2 * mad, median + 5.2 * mad, axis=0)
         return data
 
-    def factor_to_portfolio_ls_weight(self, fac_df, side, count, period):
+    def factor_to_portfolio_ls_weight(self, fac_df, side, period):
         """
         因子构建多空组合, 品种按因子值加权
         Args:
             fac_df: 矩阵形式存储的因子DataFrame
             side: 因子方向, int, 1或-1
-            count: 做多多少只股票，如果小于1则按照quantile做,这里只能小于1
             period: 调仓周期，是因子频率的period倍
 
         Returns:
@@ -245,17 +245,15 @@ class FactorAnalyser:
 
         """
         fac = fac_df.copy(deep=True)
-        assert count < 1, "count should be between 0 and 1"
         fac.replace(np.inf, np.nan, inplace=True)
         fac.replace(-np.inf, np.nan, inplace=True)
         fac = fac.dropna(how='all', axis=0)
         fac = self.filter_extreme(fac)
         long_chosen = fac.copy(deep=True)
         short_chosen = fac.copy(deep=True)
-        temp_l = fac.sub(fac.quantile(1 - count, axis=1), axis=0)
-        long_chosen[temp_l < 0] = 0
-        temp_s = fac.sub(fac.quantile(count, axis=1), axis=0)
-        short_chosen[temp_s > 0] = 0
+        sub_median = fac.sub(fac.median(1), axis=0)
+        long_chosen[sub_median <= 0] = 0
+        short_chosen[sub_median > 0] = 0
         if side == -1:
             long_chosen, short_chosen = short_chosen, long_chosen
         long_chosen = long_chosen.fillna(0)
