@@ -138,17 +138,21 @@ class FactorAnalyser:
             字典形式存储的结果
 
         """
-        fac.replace(np.inf, np.nan, inplace=True)
-        fac.replace(-np.inf, np.nan, inplace=True)
-        fac = fac.dropna(how='all', axis=0)
+        fac_df = fac.copy(deep=True)
+        fac_df.replace(np.inf, np.nan, inplace=True)
+        fac_df.replace(-np.inf, np.nan, inplace=True)
+        fac_df = fac_df.dropna(how='all', axis=0)
+        # 对因子进行过滤，从开始剔除截面上少于2个品种的数据（没意义）
+        temp_count = fac_df.count(1)
+        fac_df = fac_df[fac_df.index >= temp_count[temp_count > 1].index[0]]
         if count < 1:
-            long_chosen = fac.copy()
-            short_chosen = fac.copy()
-            temp_l = fac.sub(fac.quantile(1 - count, axis=1), axis=0)
+            long_chosen = fac_df.copy()
+            short_chosen = fac_df.copy()
+            temp_l = fac_df.sub(fac_df.quantile(1 - count, axis=1), axis=0)
 
             long_chosen[temp_l >= 0] = 1
             long_chosen[temp_l < 0] = 0
-            temp_s = fac.sub(fac.quantile(count, axis=1), axis=0)
+            temp_s = fac_df.sub(fac_df.quantile(count, axis=1), axis=0)
             short_chosen[temp_s <= 0] = 1
             short_chosen[temp_s > 0] = 0
             if side == -1:
@@ -168,16 +172,16 @@ class FactorAnalyser:
             result_df[result_df > 0] = result_df[result_df > 0].div(result_df[result_df > 0].sum(1), 0)
             result_df[result_df < 0] = -result_df[result_df < 0].div(result_df[result_df < 0].sum(1), 0)
         if count >= 1:
-            long_chosen = fac.copy()
-            short_chosen = fac.copy()
-            fac = fac.rank(axis=1, method='first')
-            fac = fac[fac.max(1) >= count * 2]
+            long_chosen = fac_df.copy()
+            short_chosen = fac_df.copy()
+            fac_df = fac_df.rank(axis=1, method='first')
+            fac_df = fac_df[fac_df.max(1) >= count * 2]
 
-            temp_l = fac.sub(fac.max(1) - count, 0)
+            temp_l = fac_df.sub(fac_df.max(1) - count, 0)
             long_chosen = long_chosen.loc[temp_l.index]
             long_chosen[temp_l > 0] = 1
             long_chosen[temp_l <= 0] = 0
-            temp_s = fac.sub(fac.min(1) + count, 0)
+            temp_s = fac_df.sub(fac_df.min(1) + count, 0)
             short_chosen = short_chosen.loc[temp_s.index]
             short_chosen[temp_s < 0] = 1
             short_chosen[temp_s >= 0] = 0
@@ -248,32 +252,50 @@ class FactorAnalyser:
         fac.replace(np.inf, np.nan, inplace=True)
         fac.replace(-np.inf, np.nan, inplace=True)
         fac = fac.dropna(how='all', axis=0)
-        fac = self.filter_extreme(fac)
-        long_chosen = fac.copy(deep=True)
-        short_chosen = fac.copy(deep=True)
-        sub_median = fac.sub(fac.median(1), axis=0)
-        long_chosen[sub_median <= 0] = 0
-        short_chosen[sub_median > 0] = 0
-        if side == -1:
-            long_chosen, short_chosen = short_chosen, long_chosen
-        long_chosen = long_chosen.fillna(0)
-        short_chosen = short_chosen.fillna(0)
-        chosen_num_l = long_chosen.sum(1)
-        result_df_l = long_chosen.div(chosen_num_l, 0)
-        chosen_num_s = short_chosen.sum(1)
-        result_df_s = -short_chosen.div(chosen_num_s, 0)
-        result_df = result_df_l + result_df_s
-        # 如果截面上全部数据一致时，会出现持仓为0的情况，这种时候修正持仓，让其等于上一个bar的持仓，相当于持仓不变
-        zero_point = result_df[(abs(result_df).sum(1) == 0)].index
-        for time_index in zero_point:
-            result_df.loc[time_index] = result_df.iloc[np.searchsorted(result_df.index, time_index) - 1, :]
-        # 归一化
-        result_df[result_df > 0] = result_df[result_df > 0].div(result_df[result_df > 0].sum(1), 0)
-        result_df[result_df < 0] = -result_df[result_df < 0].div(result_df[result_df < 0].sum(1), 0)
-        # 每隔period时间调仓,选出每次调仓结果组成dataframe
-        select_rebanlance = [i for i in range(1, len(result_df), period)]
-        select_df = result_df.iloc[select_rebanlance, :]
-        select_df = select_df.fillna(0)
+        # 对因子进行过滤，从开始剔除截面上少于2个品种的数据（没意义）
+        temp_count = fac.count(1)
+        fac = fac[fac.index >= temp_count[temp_count > 1].index[0]]
+        # 对因子覆盖度进行过滤， 平均覆盖度小于截面信息一半的因子剔除（没意义）
+        if len(fac) > 1 and fac.count(1).mean() > fac.shape[1] // 2:
+            fac = self.filter_extreme(fac)
+            long_chosen = fac.copy(deep=True)
+            short_chosen = fac.copy(deep=True)
+            sub_median = fac.sub(fac.median(1), axis=0)
+            long_chosen[sub_median <= 0] = 0
+            short_chosen[sub_median > 0] = 0
+            if side == -1:
+                long_chosen, short_chosen = short_chosen, long_chosen
+            long_chosen = long_chosen.fillna(0)
+            short_chosen = short_chosen.fillna(0)
+            chosen_num_l = long_chosen.sum(1)
+            result_df_l = long_chosen.div(chosen_num_l, 0)
+            chosen_num_s = short_chosen.sum(1)
+            result_df_s = -short_chosen.div(chosen_num_s, 0)
+            result_df = result_df_l + result_df_s
+            temp_df = result_df[(abs(result_df).sum(1) > 0)]
+            result_df = result_df[result_df.index > temp_df.index[0]]
+            if len(result_df) > 1:
+                # 如果截面上全部数据一致时，会出现持仓为0的情况，这种时候修正持仓，让其等于上一个bar的持仓，相当于持仓不变
+                zero_point = result_df[(abs(result_df).sum(1) == 0)].index
+                if len(zero_point) / len(result_df) < 0.5:
+                    for time_index in zero_point:
+                        result_df.loc[time_index] = result_df.iloc[np.searchsorted(result_df.index, time_index) - 1, :]
+                    # 归一化
+                    result_df[result_df > 0] = result_df[result_df > 0].div(result_df[result_df > 0].sum(1), 0)
+                    result_df[result_df < 0] = -result_df[result_df < 0].div(result_df[result_df < 0].sum(1), 0)
+                    # 每隔period时间调仓,选出每次调仓结果组成dataframe
+                    select_rebanlance = [i for i in range(1, len(result_df), period)]
+                    select_df = result_df.iloc[select_rebanlance, :]
+                    select_df = select_df.fillna(0)
+                else:
+                    select_df = pd.DataFrame()
+                    print("截面因子值相同大于50%")
+            else:
+                select_df = pd.DataFrame()
+                print("因子截面全部相同，无意义")
+        else:
+            select_df = pd.DataFrame()
+            print("因子覆盖度不足50%")
         return select_df
 
     def factor_to_portfolio_ls_basedon_value(self, fac, value, period):
