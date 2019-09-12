@@ -273,7 +273,8 @@ class FactorAnalyser:
             result_df_s = -short_chosen.div(chosen_num_s, 0)
             result_df = result_df_l + result_df_s
             temp_df = result_df[(abs(result_df).sum(1) > 0)]
-            result_df = result_df[result_df.index > temp_df.index[0]]
+            if len(temp_df) > 0:
+                result_df = result_df[result_df.index > temp_df.index[0]]
             if len(result_df) > 1:
                 # 如果截面上全部数据一致时，会出现持仓为0的情况，这种时候修正持仓，让其等于上一个bar的持仓，相当于持仓不变
                 zero_point = result_df[(abs(result_df).sum(1) == 0)].index
