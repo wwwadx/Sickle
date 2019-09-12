@@ -328,41 +328,45 @@ class PortfolioPerformance:
         :param cost:
         :return:
         """
-        pos = pos.sort_index()
-        start_time = min(pos.index)
-        end_time = max(pos.index)
-        tday_series = pd.Series(self.trade_times, index=self.trade_times)
-        tday_series = tday_series.loc[start_time:]
-        tday_series.name = 'dates'
-        position_df = pd.merge(pd.DataFrame(tday_series.shift(-1)), pos, left_index=True, right_index=True).dropna(how='all')
-        position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
-        position_df = position_df.drop_duplicates()
-        position_df = position_df.set_index('datetime')
-        rebalance_time = position_df.index
-        position_df_long = position_df[position_df > 0].fillna(0)
-        position_df_short = -position_df[position_df < 0].fillna(0)
-        close_open_returns = self.close_open_returns.reindex(columns=position_df.columns).fillna(0)
-        close_open_returns = close_open_returns[close_open_returns.index >= rebalance_time[0]]
-        close_close_returns = self.close_close_returns.reindex(columns=position_df.columns).fillna(0)
-        close_close_returns = close_close_returns[close_close_returns.index >= rebalance_time[0]]
-        open_close_returns = self.open_close_return.reindex(columns=position_df.columns).fillna(0)
-        open_close_returns = open_close_returns[open_close_returns.index >= rebalance_time[0]]
-        # change dataframe into numpy array
-        pos_long_array = position_df_long.values
-        pos_short_array = position_df_short.values
-        close_open_array = close_open_returns.values
-        close_close_array = close_close_returns.values
-        open_close_array = open_close_returns.values
-        returns_times = np.array([i.timestamp() for i in close_close_returns.index])
-        tday_series = tday_series[(tday_series.index >= rebalance_time[0]) & (tday_series.index <= end_time)]
-        tday_series = tday_series.apply(lambda x: x.timestamp()).values
-        rebalance_time = np.array([i.timestamp() for i in rebalance_time])
-        net_value_list, turnover_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
-                tday_series, close_open_array, open_close_array, close_close_array, cost)
-        time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
-        net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
-        turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])
-        tz_zone = get_localzone()
-        net_df.index = net_df.index.tz_localize(tz_zone)
-        turnover_df.index = turnover_df.index.tz_localize(tz_zone)
+        if len(pos) > 0:
+            pos = pos.sort_index()
+            start_time = min(pos.index)
+            end_time = max(pos.index)
+            tday_series = pd.Series(self.trade_times, index=self.trade_times)
+            tday_series = tday_series.loc[start_time:]
+            tday_series.name = 'dates'
+            position_df = pd.merge(pd.DataFrame(tday_series.shift(-1)), pos, left_index=True, right_index=True).dropna(how='all')
+            position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
+            position_df = position_df.drop_duplicates()
+            position_df = position_df.set_index('datetime')
+            rebalance_time = position_df.index
+            position_df_long = position_df[position_df > 0].fillna(0)
+            position_df_short = -position_df[position_df < 0].fillna(0)
+            close_open_returns = self.close_open_returns.reindex(columns=position_df.columns).fillna(0)
+            close_open_returns = close_open_returns[close_open_returns.index >= rebalance_time[0]]
+            close_close_returns = self.close_close_returns.reindex(columns=position_df.columns).fillna(0)
+            close_close_returns = close_close_returns[close_close_returns.index >= rebalance_time[0]]
+            open_close_returns = self.open_close_return.reindex(columns=position_df.columns).fillna(0)
+            open_close_returns = open_close_returns[open_close_returns.index >= rebalance_time[0]]
+            # change dataframe into numpy array
+            pos_long_array = position_df_long.values
+            pos_short_array = position_df_short.values
+            close_open_array = close_open_returns.values
+            close_close_array = close_close_returns.values
+            open_close_array = open_close_returns.values
+            returns_times = np.array([i.timestamp() for i in close_close_returns.index])
+            tday_series = tday_series[(tday_series.index >= rebalance_time[0]) & (tday_series.index <= end_time)]
+            tday_series = tday_series.apply(lambda x: x.timestamp()).values
+            rebalance_time = np.array([i.timestamp() for i in rebalance_time])
+            net_value_list, turnover_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
+                    tday_series, close_open_array, open_close_array, close_close_array, cost)
+            time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
+            net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
+            turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])
+            tz_zone = get_localzone()
+            net_df.index = net_df.index.tz_localize(tz_zone)
+            turnover_df.index = turnover_df.index.tz_localize(tz_zone)
+        else:
+            net_df = pd.DataFrame()
+            turnover_df = pd.DataFrame()
         return net_df, turnover_df
