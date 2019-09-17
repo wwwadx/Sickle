@@ -20,7 +20,7 @@ def run_fac(factor, frequence, n=None, trend=None):
 
 def update_basic(frequency_list):
     all_factors = f_basic.__all__
-    pool = multiprocessing.Pool(processes=1)
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     for factor in tqdm(all_factors):
         if factor.startswith('ORIGINAL'):
             for frequence in frequency_list:
@@ -67,4 +67,4 @@ def update_all():
 
 if __name__ == '__main__':
     # update_all()
-    update_basic(['30min'])
+    update_basic(['3min'])
