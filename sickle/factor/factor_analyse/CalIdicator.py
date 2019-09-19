@@ -179,15 +179,22 @@ class CalIdicator:
         ).apply(
             lambda x: empyrical.sharpe_ratio(x)
         )
+        year_turnover = self.turn_over.groupby(
+            [self.turn_over.index.year]
+        ).mean()
+        total_turnover = self.turn_over.mean()
         year_per = pd.DataFrame(
             {
                 '夏普': sharpe_ratio,
+                '换手': year_turnover
             }
         )
+
         year_per = year_per.append(
             pd.Series(
                 {
                     '夏普': empyrical.sharpe_ratio(self.daily_return),
+                    '换手': total_turnover
                 }, name='annual'
             )
         )
