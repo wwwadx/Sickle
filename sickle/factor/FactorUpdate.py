@@ -67,4 +67,4 @@ def update_all():
 
 if __name__ == '__main__':
     # update_all()
-    update_basic(['3min'])
+    update_basic(['10min'])
