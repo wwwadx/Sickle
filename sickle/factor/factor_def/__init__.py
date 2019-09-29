@@ -12,6 +12,7 @@ __all__ = [
     'ORIGINAL_AMT',
     'ORIGINAL_ASK1',
     'ORIGINAL_BID1',
+    'ORIGINAL_INTEREST',
     'TREND_CLOSE',
     'O_SKEWNESS',
     'O_RSM',
