@@ -92,7 +92,7 @@ class FactorBase:
         # contracts = [i.lower() for i in contracts if i not in filter_contracts]
         self.contracts = ['a', 'ag', 'al', 'ap', 'au', 'bu',
                           'c', 'cs', 'cu', 'cf',
-                          'fg', 'fu', 'hc', 'i', 'j', 'jd',
+                          'fg', 'fu', 'hc', 'j', 'jd',
                           'jm', 'm', 'rb', 'l', 'ma', 'oi',
                           'ni', 'p', 'pb', 'pp', 'rs', 'rm',
                           'ru', 'sf', 'sm', 'sn', 'sr', 'ta',
