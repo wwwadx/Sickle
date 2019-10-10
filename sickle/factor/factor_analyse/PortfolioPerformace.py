@@ -11,8 +11,43 @@ user_home = os.path.expanduser('~')
 
 
 @numba.jit
+def fine_tune_func(temp_long, temp_short, temp_long_open, temp_short_open, fine_tune):
+    temp_long_copy = temp_long * 1.0
+    temp_short_copy = temp_short * 1.0
+    change_long = np.abs(temp_long - temp_long_open)
+    change_short = np.abs(temp_short - temp_short_open)
+    # 调整比例小于最小调整比例的部分，权重和原来一样
+    # 多仓部分调整
+    need_adjust_long = change_long[change_long < fine_tune].shape[0]  # 需要调整的个数
+    no_need_adjust_long = change_long.shape[0] - need_adjust_long
+    if no_need_adjust_long != 0:
+        temp_long_copy[change_long - fine_tune < 0] = temp_long_open[change_long - fine_tune < 0]
+        # 去除微调后总权重会产生变化，这部分变化要进行修正，保证其权重和不变
+        weight_chg_long = np.sum(temp_long_copy) - np.sum(temp_long)
+        temp_long_copy[change_long - fine_tune >= 0] -= weight_chg_long / no_need_adjust_long
+    else:
+        # 全部微调的情况下，保持持仓不变
+        temp_long_copy = temp_long_open * 1.0
+    temp_long = temp_long_copy
+
+    # 空仓部分调整
+    need_adjust_short = change_short[change_short < fine_tune].shape[0]  # 需要调整的个数
+    no_need_adjust_short = change_short.shape[0] - need_adjust_short
+    if no_need_adjust_short != 0:
+        temp_short_copy[change_short - fine_tune < 0] = temp_short_open[change_short - fine_tune < 0]
+        # 去除微调后总权重会产生变化，这部分变化要进行修正，保证其权重和不变
+        weight_chg_short = np.sum(temp_short_copy) - np.sum(temp_short)
+        temp_short_copy[change_short - fine_tune >= 0] -= weight_chg_short / no_need_adjust_short
+    else:
+        # 全部微调的情况下，保持持仓不变
+        temp_short_copy = temp_short_open * 1.0
+    temp_short = temp_short_copy
+    return temp_long, temp_short
+
+
+@numba.jit
 def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
-            tday_series, close_open_array, open_close_array, close_close_array, cost):
+            tday_series, close_open_array, open_close_array, close_close_array, cost, fine_tune):
     net_value_list = np.zeros(tday_series.shape[0])
     turnover_list = np.zeros(tday_series.shape[0])
     # 建仓
@@ -25,24 +60,29 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
     turnover_list[0] = 1
 
     last_cost = np.array([cost])
-    for i in np.arange(tday_series.shape[0]):
+    for i in np.arange(tday_series.shape[0] - 1):
         # 换仓
         i = i + 1
         trade_time = tday_series[i]
         if np.any(rebalance_time == trade_time):
             re_time_index = np.searchsorted(rebalance_time, trade_time)
             return_time_index = np.searchsorted(returns_times, trade_time)
+            # 开盘时权重的变化（由开盘价和前收盘价价差造成的）
             temp_long_open = daily_weight_long * (1 + open_close_array[return_time_index])
             temp_short_open = daily_weight_short * (1 - open_close_array[return_time_index])
+            # 开盘换仓（开盘时的权重和乘以目标权重）
             temp_long = pos_long_array[re_time_index] * (
                     np.sum(temp_long_open) + np.sum(temp_short_open) - last_cost) * 0.5
             temp_short = pos_short_array[re_time_index] * (
                     np.sum(temp_long_open) + np.sum(temp_short_open) - last_cost) * 0.5
-            cost_long = np.abs(temp_long - daily_weight_long) * cost
-            cost_short = np.abs(temp_short - daily_weight_short) * cost
+            # 去除微调
+            if fine_tune is not None:
+                temp_long, temp_short = fine_tune_func(temp_long, temp_short, temp_long_open, temp_short_open, fine_tune)
+            cost_long = np.abs(temp_long - temp_long_open) * cost
+            cost_short = np.abs(temp_short - temp_short_open) * cost
             cost_percent = cost_long + cost_short
-            turnover = (np.sum(np.abs(temp_long - daily_weight_long) / np.sum(daily_weight_long)) + np.sum(
-                np.abs(temp_short - daily_weight_short) / np.sum(daily_weight_short))) / 2
+            turnover = (np.sum(np.abs(temp_long - temp_long_open) / np.sum(temp_long_open)) + np.sum(
+                np.abs(temp_short - temp_short_open) / np.sum(temp_short_open))) / 2
             temp_long_close = temp_long * (1 - cost_long + close_open_array[return_time_index])
             temp_short_close = temp_short * (1 - cost_short - close_open_array[return_time_index])
             daily_weight_long = temp_long_close
@@ -320,12 +360,13 @@ class PortfolioPerformance:
         return net_df, turnover_df
 
     # @do_profile("./pos_cal.prof")
-    def long_and_short_perf_optimize_with_numba(self, pos, cost):
+    def long_and_short_perf_optimize_with_numba(self, pos, cost, fine_tune=None):
         """
         同时多空的收益
         每次rebalance的时候要rebalance多空的市值
         :param pos:
         :param cost:
+        :param fine_tune: 是否去除微调，如果去除传入百分比
         :return:
         """
         if len(pos) > 0:
@@ -339,6 +380,7 @@ class PortfolioPerformance:
             position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
             position_df = position_df.drop_duplicates()
             position_df = position_df.set_index('datetime')
+            position_df = position_df[position_df.index.notnull()]
             rebalance_time = position_df.index
             position_df_long = position_df[position_df > 0].fillna(0)
             position_df_short = -position_df[position_df < 0].fillna(0)
@@ -359,7 +401,7 @@ class PortfolioPerformance:
             tday_series = tday_series.apply(lambda x: x.timestamp()).values
             rebalance_time = np.array([i.timestamp() for i in rebalance_time])
             net_value_list, turnover_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
-                    tday_series, close_open_array, open_close_array, close_close_array, cost)
+                    tday_series, close_open_array, open_close_array, close_close_array, cost, fine_tune)
             time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
             net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
             turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])

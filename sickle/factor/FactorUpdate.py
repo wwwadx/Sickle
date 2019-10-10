@@ -67,5 +67,5 @@ def update_all():
 
 if __name__ == '__main__':
     # update_all()
-    for fre in ['3min', '5min', '10min', '15min', '30min']:
+    for fre in ['3min', '5min', '10min', '15min', '30min', 'half_day', '1min']:
         update_basic([fre])
