@@ -103,6 +103,59 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
     return net_value_list, turnover_list
 
 
+@numba.jit
+def cal_net_with_close(pos_long_array, pos_short_array, rebalance_time, returns_times,
+                       tday_series, close_open_array, open_close_array, close_close_array, cost, fine_tune):
+    net_value_list = np.zeros(tday_series.shape[0])
+    turnover_list = np.zeros(tday_series.shape[0])
+    # 建仓
+    temp_long = pos_long_array[0] * (1 - cost + close_open_array[0]) * 0.5
+    temp_short = pos_short_array[0] * (1 - cost - close_open_array[0]) * 0.5
+    daily_weight_long = temp_long
+    daily_weight_short = temp_short
+
+    net_value_list[0] = np.sum(temp_long) + np.sum(temp_short)
+    turnover_list[0] = 1
+
+    last_cost = np.array([cost])
+    for i in np.arange(tday_series.shape[0] - 1):
+        # 换仓
+        i = i + 1
+        trade_time = tday_series[i]
+        if np.any(rebalance_time == trade_time):
+            re_time_index = np.searchsorted(rebalance_time, trade_time)
+            return_time_index = np.searchsorted(returns_times, trade_time)
+            # 换仓
+            temp_long = pos_long_array[re_time_index] * (np.sum(daily_weight_long) + np.sum(daily_weight_short) - last_cost) * 0.5
+            temp_short = pos_short_array[re_time_index] * (np.sum(daily_weight_short) + np.sum(daily_weight_long) - last_cost) * 0.5
+            # 去除微调
+            if fine_tune is not None:
+                temp_long, temp_short = fine_tune_func(temp_long, temp_short, daily_weight_long, daily_weight_short, fine_tune)
+            cost_long = np.abs(temp_long - daily_weight_long) * cost
+            cost_short = np.abs(temp_short - daily_weight_short) * cost
+            cost_percent = cost_long + cost_short
+            turnover = (np.sum(np.abs(temp_long - daily_weight_long) / np.sum(daily_weight_long)) + np.sum(
+                np.abs(temp_short - daily_weight_short) / np.sum(daily_weight_short))) / 2
+            temp_long_close = temp_long * (1 - cost_long + close_close_array[return_time_index])
+            temp_short_close = temp_short * (1 - cost_short - close_close_array[return_time_index])
+            daily_weight_long = temp_long_close
+            daily_weight_short = temp_short_close
+            net_value_list[i] = np.sum(temp_long_close) + np.sum(temp_short_close)
+            turnover_list[i] = turnover
+            last_cost = cost_percent
+        # 非换仓
+        else:
+            return_time_index = np.searchsorted(returns_times, trade_time)
+            temp_long = daily_weight_long * (1 + close_close_array[return_time_index])
+            temp_short = daily_weight_short * (1 - close_close_array[return_time_index])
+            daily_weight_long = temp_long
+            daily_weight_short = temp_short
+            net_value_list[i] = np.sum(temp_short) + np.sum(temp_long)
+            turnover_list[i] = 0
+
+    return net_value_list, turnover_list
+
+
 class PortfolioPerformance:
     def __init__(self, frequence):
         self.open = None
@@ -412,3 +465,57 @@ class PortfolioPerformance:
             net_df = pd.DataFrame()
             turnover_df = pd.DataFrame()
         return net_df, turnover_df
+
+    def long_and_short_perf_optimize_with_numba_close(self, pos, cost, fine_tune=None):
+        """
+        同时多空的收益
+        每次rebalance的时候要rebalance多空的市值
+        :param pos:
+        :param cost:
+        :param fine_tune: 是否去除微调，如果去除传入百分比
+        :return:
+        """
+        if len(pos) > 0:
+            pos = pos.sort_index()
+            start_time = min(pos.index)
+            end_time = max(pos.index)
+            tday_series = pd.Series(self.trade_times, index=self.trade_times)
+            tday_series = tday_series.loc[start_time:]
+            tday_series.name = 'dates'
+            position_df = pd.merge(pd.DataFrame(tday_series.shift(-1)), pos, left_index=True, right_index=True).dropna(how='all')
+            position_df = position_df.set_index('dates').reset_index().rename(columns={'dates': 'datetime'})
+            position_df = position_df.drop_duplicates()
+            position_df = position_df.set_index('datetime')
+            position_df = position_df[position_df.index.notnull()]
+            rebalance_time = position_df.index
+            position_df_long = position_df[position_df > 0].fillna(0)
+            position_df_short = -position_df[position_df < 0].fillna(0)
+            close_open_returns = self.close_open_returns.reindex(columns=position_df.columns).fillna(0)
+            close_open_returns = close_open_returns[close_open_returns.index >= rebalance_time[0]]
+            close_close_returns = self.close_close_returns.reindex(columns=position_df.columns).fillna(0)
+            close_close_returns = close_close_returns[close_close_returns.index >= rebalance_time[0]]
+            open_close_returns = self.open_close_return.reindex(columns=position_df.columns).fillna(0)
+            open_close_returns = open_close_returns[open_close_returns.index >= rebalance_time[0]]
+            # change dataframe into numpy array
+            pos_long_array = position_df_long.values
+            pos_short_array = position_df_short.values
+            close_open_array = close_open_returns.values
+            close_close_array = close_close_returns.values
+            open_close_array = open_close_returns.values
+            returns_times = np.array([i.timestamp() for i in close_close_returns.index])
+            tday_series = tday_series[(tday_series.index >= rebalance_time[0]) & (tday_series.index <= end_time)]
+            tday_series = tday_series.apply(lambda x: x.timestamp()).values
+            rebalance_time = np.array([i.timestamp() for i in rebalance_time])
+            net_value_list, turnover_list = cal_net_with_close(pos_long_array, pos_short_array, rebalance_time, returns_times,
+                    tday_series, close_open_array, open_close_array, close_close_array, cost, fine_tune)
+            time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
+            net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
+            turnover_df = pd.DataFrame(data=turnover_list, index=time_list, columns=['turnover'])
+            tz_zone = get_localzone()
+            net_df.index = net_df.index.tz_localize(tz_zone)
+            turnover_df.index = turnover_df.index.tz_localize(tz_zone)
+        else:
+            net_df = pd.DataFrame()
+            turnover_df = pd.DataFrame()
+        return net_df, turnover_df
+
