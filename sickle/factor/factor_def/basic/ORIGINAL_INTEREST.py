@@ -9,10 +9,7 @@ class ORIGINAL_INTEREST(FactorBase):
     def compute(self, start_date=None, end_date=None):
         res_df = pd.DataFrame()
         for contract in self.contracts:
-            if self.frequency == 'half_day':
-                table_name = 'cc_pre_{0}_{1}'.format(self.frequency, contract)
-            else:
-                table_name = 'cc_pre_{0}_add_interest_{1}'.format(self.frequency, contract)
+            table_name = 'cc_pre_{0}_{1}'.format(self.frequency, contract)
             if start_date is None:
                 start_date = str(self.api.earliest_day(table_name))
             if end_date is None:
