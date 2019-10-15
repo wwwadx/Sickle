@@ -96,9 +96,9 @@ class PortfolioPerformanceCash:
         num_temp = pd.concat([num_temp, temp_open], axis=1, join='inner')
         num_temp = pd.concat([num_temp, temp_close], axis=1, join='inner')
         num_temp['多头手数'] = (num_temp['pos_long'] * cal_df.at[tday, '净值'] / (num_temp['open'])).apply(
-            lambda x: round(x, 0))
+            lambda x: np.floor(x))
         num_temp['空头手数'] = (num_temp['pos_short'] * cal_df.at[tday, '净值'] / (num_temp['open'])).apply(
-            lambda x: round(x, 0))
+            lambda x: np.floor(x))
         change_amount = (num_temp['多头手数'] * num_temp['open'] + num_temp['空头手数'] * num_temp['open']).sum()
         costs = change_amount * cost_ratio
         cal_df.at[tday, '多头头寸'] = (num_temp['多头手数'] * num_temp['close']).sum()
@@ -127,11 +127,10 @@ class PortfolioPerformanceCash:
                 cal_df.at[tday, '多头头寸'] = (num_temp['多头手数'] * num_temp['close']).sum()
                 cal_df.at[tday, '多头收益率'] = (cal_df.at[tday, '多头头寸'] / cal_df.at[previous_day, '多头头寸']) - 1
                 cal_df.at[tday, '空头头寸'] = (num_temp['空头手数'] * num_temp['close']).sum()
-                cal_df.at[tday, '空头收益率'] = (cal_df.at[tday, '空头头寸'] / cal_df.at[previous_day, '空头头寸']) - 1
+                cal_df.at[tday, '空头收益率'] = -(cal_df.at[tday, '空头头寸'] / cal_df.at[previous_day, '空头头寸'] - 1)
                 cal_df.at[tday, '本期多头盈亏'] = cal_df.at[previous_day, '多头头寸'] * cal_df.at[tday, '多头收益率']
                 cal_df.at[tday, '本期空头盈亏'] = cal_df.at[previous_day, '空头头寸'] * cal_df.at[tday, '空头收益率']
-                cal_df.at[tday, '多头头寸'] = cal_df.at[previous_day, '多头头寸'] + cal_df.at[tday, '本期多头盈亏']
-                cal_df.at[tday, '空头头寸'] = cal_df.at[previous_day, '空头头寸'] + cal_df.at[tday, '本期空头盈亏']
+                # cal_df.at[tday, '空头头寸'] = cal_df.at[previous_day, '空头头寸'] + cal_df.at[tday, '本期空头盈亏']
                 cal_df.at[tday, '现金余额'] = cal_df.at[previous_day, '现金余额']
                 cal_df.at[tday, '净值'] = cal_df.at[tday, '本期多头盈亏'] + cal_df.at[tday, '本期空头盈亏'] + cal_df.at[previous_day, '净值']
                 cal_df.at[tday, '净值曲线'] = cal_df.at[tday, '净值'] / cal_df.iloc[0]['净值']
