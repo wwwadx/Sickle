@@ -16,11 +16,8 @@ class ORIGINAL_CLOSE(FactorBase):
                 end_date = str(self.api.latest_day(table_name))
             temp = self.api.market_data(table_name, 'datetime,close', start_date, end_date)
             if len(temp) > 0:
-                try:
-                    temp = temp.rename(columns={'close': contract})
-                    res_df = pd.concat([res_df, temp], axis=1)
-                except:
-                    print('a')
+                temp = temp.rename(columns={'close': contract})
+                res_df = pd.concat([res_df, temp], axis=1)
         if len(res_df) > 0:
             self.raw_value = res_df
         else:

@@ -20,14 +20,16 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
     short_value_list = np.zeros(tday_series.shape[0])
     long_volume_list = np.zeros((tday_series.shape[0], pos_long_array.shape[1]))
     short_volume_list = np.zeros((tday_series.shape[0], pos_short_array.shape[1]))
+    # save result for portfolio analyse
+    cash_list = np.zeros(tday_series.shape[0])
     # 建仓
     long_volume = np.floor(pos_long_array[0] * init_cap / open_price_array[0])
     short_volume = np.floor(pos_short_array[0] * init_cap / open_price_array[0])
     long_volume_list[0] = long_volume
     short_volume_list[0] = short_volume
-
     change_amount = np.sum(long_volume * open_price_array[0]) + np.sum(short_volume * open_price_array[0])
     cost_money = change_amount * cost
+    cash_list[0] = init_cap - change_amount - cost_money
     long_earning = np.sum(long_volume * close_price_array[0]) - np.sum(long_volume * open_price_array[0])
     short_earning = np.sum(short_volume * open_price_array[0]) - np.sum(short_volume * close_price_array[0])
     long_value_list[0] = np.sum(long_volume * close_price_array[0])
@@ -57,7 +59,6 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
                             np.sum(np.abs(target_short - short_volume_list[i-1]) * open_price_array[return_time_index])
             cost_money = change_amount * cost
             turnover_list[i] = change_amount / account_value_list[i-1]
-
             # bar结束，多空市值
             long_value_list[i] = np.sum(target_long * close_price_array[return_time_index])
             short_value_list[i] = np.sum(target_short * close_price_array[return_time_index])
@@ -69,6 +70,7 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
             # 账户价值变动
             account_value_list[i] = long_earning + short_earning + account_value_list[i-1] - cost_money
             net_value_list[i] = account_value_list[i] / account_value_list[0]
+            cash_list[i] = account_value_list[i] - long_value_list[i] - short_value_list[i]
         # 非换仓
         else:
             return_time_index = np.searchsorted(returns_times, trade_time)
@@ -77,13 +79,14 @@ def cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
             turnover_list[i] = 0
             long_value_list[i] = np.sum(long_volume_list[i] * close_price_array[return_time_index])
             short_value_list[i] = np.sum(short_volume_list[i] * close_price_array[return_time_index])
+            cash_list[i] = cash_list[i-1]
             # 盈亏就是市值变化
             long_earning = long_value_list[i] - long_value_list[i-1]
             short_earning = short_value_list[i-1] - short_value_list[i]
 
             account_value_list[i] = account_value_list[i-1] + long_earning + short_earning
             net_value_list[i] = account_value_list[i] / account_value_list[0]
-    return net_value_list, turnover_list
+    return net_value_list, turnover_list, long_volume_list, short_volume_list, cash_list
 
 
 class PortfolioPerformance:
@@ -104,7 +107,7 @@ class PortfolioPerformance:
         self.trade_times = self.close.index
 
     # @do_profile("./pos_cal.prof")
-    def long_and_short_perf_optimize_with_numba(self, pos, cost, init_cap):
+    def long_and_short_perf_optimize_with_numba(self, pos, cost, init_cap, analyse=False):
         """
         同时多空的收益
         每次rebalance的时候要rebalance多空的市值
@@ -143,7 +146,7 @@ class PortfolioPerformance:
             tday_series = tday_series[(tday_series.index >= rebalance_time[0]) & (tday_series.index <= end_time)]
             tday_series = tday_series.apply(lambda x: x.timestamp()).values
             rebalance_time = np.array([i.timestamp() for i in rebalance_time])
-            net_value_list, turnover_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
+            net_value_list, turnover_list, long_volume_list, short_volume_list, cash_list = cal_net(pos_long_array, pos_short_array, rebalance_time, returns_times,
                     tday_series, close_price_array, open_price_array, cost, init_cap)
             time_list = [dt.datetime.fromtimestamp(i) for i in tday_series]
             net_df = pd.DataFrame(data=net_value_list, index=time_list, columns=['net_value'])
@@ -151,6 +154,15 @@ class PortfolioPerformance:
             tz_zone = get_localzone()
             net_df.index = net_df.index.tz_localize(tz_zone)
             turnover_df.index = turnover_df.index.tz_localize(tz_zone)
+            # table for portfolio analyse
+            if analyse:
+                long_position_volume = pd.DataFrame(data=long_volume_list, index=time_list, columns=position_df.columns)
+                short_position_volume = pd.DataFrame(data=short_volume_list, index=time_list, columns=position_df.columns)
+                position_volume = long_position_volume - short_position_volume
+                cash_df = pd.DataFrame(data=cash_list, index=time_list, columns=['cash'])
+                position_volume.index = position_volume.index.tz_localize(tz_zone)
+                cash_df.index = cash_df.index.tz_localize(tz_zone)
+                return net_df, position_volume, cash_df
         else:
             net_df = pd.DataFrame()
             turnover_df = pd.DataFrame()

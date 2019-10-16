@@ -67,6 +67,8 @@ def update_all():
 
 if __name__ == '__main__':
     # update_all()
+    fac = ORIGINAL_CLOSE('1d_include_night')
+    fac.update()
     for fre in ['30min', '5min', '10min', '15min', '3min', 'half_day',
-                '3min_minus_15s', '2min_45s', '4min', '6min']:
+                '3min_minus_15s', '2min_45s', '4min', '6min', '1d', '1d_include_night']:
         update_basic([fre])

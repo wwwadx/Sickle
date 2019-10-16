@@ -143,9 +143,9 @@ class QueryApi:
                 df = df.tz_localize(tz_zone)
             else:
                 df = df.tz_convert(tz_zone)
-            if not night:
+            if not night and table[7:9] != '1d':
                 # 过滤掉全部夜盘数据
-                filter_night = [i for i in df.index if i.time() <= dt.time(15) and i.time() >= dt.time(9)]
+                filter_night = [i for i in df.index if i.time() <= dt.time(16) and i.time() >= dt.time(8)]
                 df = df.loc[filter_night]
         return df
 
